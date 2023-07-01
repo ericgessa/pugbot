@@ -202,7 +202,7 @@ public class BotCommands extends ListenerAdapter {
         assert event.getGuild() != null;
 
         if (!(redTeam.size() == (pugSize / 2) || bluTeam.size() == (pugSize / 2))) {
-            event.reply("Could not start pug! Someone may have left the channel.\nReroll to create new pug.").setEphemeral(true).queue();
+            event.reply("Could not start pug! Someone may have left the channel.\nRerun to create new pug.").setEphemeral(true).queue();
         } else {
             if (pugSize > 10) {
                 event.reply("Pug started!\nDiscord allows only ten people to be moved at once, so please give me time to move the rest of the players.").setEphemeral(true).queue();
