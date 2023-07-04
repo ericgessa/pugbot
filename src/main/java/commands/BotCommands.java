@@ -21,6 +21,7 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class BotCommands extends ListenerAdapter {
     EmbedBuilder eb = new EmbedBuilder();
@@ -35,10 +36,12 @@ public class BotCommands extends ListenerAdapter {
     List<Member> fatKids;
 
     OptionData size;
+    OptionData type;
 
     OptionMapping format;
     OptionMapping channel;
     OptionMapping customSize;
+    OptionMapping pugType;
 
     int pugSize = 0;
 
@@ -53,9 +56,19 @@ public class BotCommands extends ListenerAdapter {
             channel = event.getOption("channel");
             assert channel != null;
 
+            pugType = event.getOption("pugtype");
+            assert pugType != null;
+
+            String pugTypeOption = pugType.getAsString();
             pug = channel.getAsChannel().asVoiceChannel();
-            blu = event.getGuild().getVoiceChannelById(1099095690640105502L);
-            red = event.getGuild().getVoiceChannelById(1099095742003548160L);
+
+            if (pugTypeOption.toLowerCase(Locale.ROOT).equals("bpugs")) {
+                blu = event.getGuild().getVoiceChannelById(1114418370494877747L);
+                red = event.getGuild().getVoiceChannelById(1114418421375963176L);
+            } else {
+                blu = event.getGuild().getVoiceChannelById(1099095690640105502L);
+                red = event.getGuild().getVoiceChannelById(1099095742003548160L);
+            }
 
 
             String formatOption = format.getAsString();
@@ -161,6 +174,7 @@ public class BotCommands extends ListenerAdapter {
     public String listMembers(List<Member> members, boolean mentionable, boolean sort) {
         return getNames(members, mentionable, sort);
     }
+
     private void setupPug(SlashCommandInteractionEvent event) {
         createList();
 
@@ -241,8 +255,11 @@ public class BotCommands extends ListenerAdapter {
                 .addChoice("Prolander", "pl")
                 .addChoice("Custom", "c");
         size = new OptionData(OptionType.INTEGER, "pugsize", "Custom pug size. Only required when pug format is set to \"custom\".");
+        type = new OptionData(OptionType.STRING, "pugtype", "A or B pugs?")
+                .addChoice("A", "apugs")
+                .addChoice("B", "bpugs");
 
-        commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, size).setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
+        commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, size, type).setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
 
         for (CommandData c : commandData) {
             event.getGuild().upsertCommand(c).queue();
