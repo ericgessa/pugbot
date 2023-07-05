@@ -254,12 +254,12 @@ public class BotCommands extends ListenerAdapter {
                 .addChoice("Highlander", "hl")
                 .addChoice("Prolander", "pl")
                 .addChoice("Custom", "c");
-        size = new OptionData(OptionType.INTEGER, "pugsize", "Custom pug size. Only required when pug format is set to \"custom\".");
-        type = new OptionData(OptionType.STRING, "pugtype", "A or B pugs?")
+        type = new OptionData(OptionType.STRING, "pugtype", "A or B pugs?", true)
                 .addChoice("A", "apugs")
                 .addChoice("B", "bpugs");
+        size = new OptionData(OptionType.INTEGER, "pugsize", "Custom pug size. Only required when pug format is set to \"custom\".");
 
-        commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, size, type).setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
+        commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, type, size).setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
 
         for (CommandData c : commandData) {
             event.getGuild().upsertCommand(c).queue();
