@@ -54,8 +54,8 @@ public class BotCommands extends ListenerAdapter {
             assert channel != null;
 
             pug = channel.getAsChannel().asVoiceChannel();
-            blu = event.getGuild().getVoiceChannelById(1123153368613916792L);
-            red = event.getGuild().getVoiceChannelById(1122879583637749872L);
+            blu = event.getGuild().getVoiceChannelById(1099095690640105502L);
+            red = event.getGuild().getVoiceChannelById(1099095742003548160L);
 
 
             String formatOption = format.getAsString();
@@ -85,8 +85,46 @@ public class BotCommands extends ListenerAdapter {
         }
     }
 
-    public String listMembers(List<Member> members, boolean mentionable, boolean sort) {
-        return getNames(members, mentionable, sort);
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        assert event.getGuild() != null;
+
+        try {
+            if (event.getComponentId().equals("startpug")) {
+                moveToTeams(event);
+            } else if (event.getComponentId().equals("reroll")) {
+                refreshPug(event);
+            }
+        } catch (NullPointerException e) {
+            event.getInteraction().deferReply().setEphemeral(true).queue();
+        }
+    }
+
+    public void createList() {
+        eb.clear();
+        pugChannelMembers = new ArrayList<>(pug.getMembers());
+        redTeam = new ArrayList<>();
+        bluTeam = new ArrayList<>();
+        fatKids = new ArrayList<>();
+
+        Collections.shuffle(pugChannelMembers);
+
+        for (Member m : pugChannelMembers) {
+            if (pugChannelMembers.indexOf(m) < (pugSize / 2)) {
+                bluTeam.add(m);
+            } else if (pugChannelMembers.indexOf(m) >= (pugSize / 2) && pugChannelMembers.indexOf(m) < pugSize) {
+                redTeam.add(m);
+            } else if (pugChannelMembers.indexOf(m) >= pugSize) {
+                fatKids.add(m);
+            }
+        }
+
+        eb.setColor(new Color(220, 20, 60));
+        eb.addField("BLU:", listMembers(bluTeam, false, true), true);
+        eb.addField("RED:", listMembers(redTeam, false, true), true);
+        if (fatKids.size() > 0) {
+            eb.addField("FKs:", listMembers(fatKids, false, true), false);
+        }
     }
 
     @NotNull
@@ -120,25 +158,9 @@ public class BotCommands extends ListenerAdapter {
         return messageOfNames;
     }
 
-    public void runComparator(List<Member> members) {
-        members.sort((m1, m2) -> String.CASE_INSENSITIVE_ORDER.compare(m1.getEffectiveName(), m2.getEffectiveName()));
+    public String listMembers(List<Member> members, boolean mentionable, boolean sort) {
+        return getNames(members, mentionable, sort);
     }
-
-    @Override
-    public void onButtonInteraction(ButtonInteractionEvent event) {
-        assert event.getGuild() != null;
-
-        try {
-            if (event.getComponentId().equals("startpug")) {
-                moveToTeams(event);
-            } else if (event.getComponentId().equals("reroll")) {
-                refreshPug(event);
-            }
-        } catch (NullPointerException e) {
-            event.getInteraction().deferReply().setEphemeral(true).queue();
-        }
-    }
-
     private void setupPug(SlashCommandInteractionEvent event) {
         createList();
 
@@ -157,39 +179,23 @@ public class BotCommands extends ListenerAdapter {
         }
     }
 
-    private void refreshPug(ButtonInteractionEvent event) {
+    private void refreshPug(ButtonInteractionEvent buttonEvent) {
         createList();
 
-        MessageEmbed embed = eb.build();
-        event.editMessage("").setEmbeds(embed)
-                .queue();
+        if (pug.getMembers().size() < pugSize) {
+            buttonEvent.reply("Could not start pug! Someone must have left!\n"
+                            + "Number added: " + pug.getMembers().size()
+                            + ", number required: " + pugSize).setEphemeral(true)
+                    .queue();
+        } else {
+            MessageEmbed embed = eb.build();
+            buttonEvent.editMessage("").setEmbeds(embed)
+                    .queue();
+        }
     }
 
-    public void createList() {
-        eb.clear();
-        pugChannelMembers = new ArrayList<>(pug.getMembers());
-        redTeam = new ArrayList<>();
-        bluTeam = new ArrayList<>();
-        fatKids = new ArrayList<>();
-
-        Collections.shuffle(pugChannelMembers);
-
-        for (Member m : pugChannelMembers) {
-            if (pugChannelMembers.indexOf(m) < (pugSize / 2)) {
-                bluTeam.add(m);
-            } else if (pugChannelMembers.indexOf(m) >= (pugSize / 2) && pugChannelMembers.indexOf(m) < pugSize) {
-                redTeam.add(m);
-            } else if (pugChannelMembers.indexOf(m) >= pugSize) {
-                fatKids.add(m);
-            }
-        }
-
-        eb.setColor(new Color(220, 20, 60));
-        eb.addField("BLU:", listMembers(bluTeam, false, true), true);
-        eb.addField("RED:", listMembers(redTeam, false, true), true);
-        if (fatKids.size() > 0) {
-            eb.addField("FKs:", listMembers(fatKids, false, true), false);
-        }
+    public void runComparator(List<Member> members) {
+        members.sort((m1, m2) -> String.CASE_INSENSITIVE_ORDER.compare(m1.getEffectiveName(), m2.getEffectiveName()));
     }
 
     public void moveToTeams(ButtonInteractionEvent event) {
@@ -198,20 +204,35 @@ public class BotCommands extends ListenerAdapter {
         if (!(redTeam.size() == (pugSize / 2) || bluTeam.size() == (pugSize / 2))) {
             event.reply("Could not start pug! Someone may have left the channel.\nReroll to create new pug.").setEphemeral(true).queue();
         } else {
-            for (Member m : bluTeam) {
-                event.getGuild().moveVoiceMember(m, blu).queue();
+            if (pugSize > 10) {
+                event.reply("Pug started!\nDiscord allows only ten people to be moved at once, so please give me time to move the rest of the players.").setEphemeral(true).queue();
+            } else {
+                event.reply("Pug started!").setEphemeral(true).queue();
             }
-            for (Member m : redTeam) {
-                event.getGuild().moveVoiceMember(m, red).queue();
-            }
-            event.reply("Pug started!").setEphemeral(true).queue();
+
+            moveBlu(event);
+            moveRed(event);
         }
         bluTeam.clear();
         redTeam.clear();
     }
 
+    public void moveBlu(ButtonInteractionEvent event) {
+        assert event.getGuild() != null;
+        for (Member m : bluTeam) {
+            event.getGuild().moveVoiceMember(m, blu).queue();
+        }
+    }
+
+    public void moveRed(ButtonInteractionEvent event) {
+        assert event.getGuild() != null;
+        for (Member m : redTeam) {
+            event.getGuild().moveVoiceMember(m, red).queue();
+        }
+    }
+
     @Override
-    public void onGuildReady(GuildReadyEvent event) {
+    public void onGuildReady(@NotNull GuildReadyEvent event) {
         List<CommandData> commandData = new ArrayList<>();
 
         OptionData vc = new OptionData(OptionType.CHANNEL, "channel", "Name of voice channel to start pug in", true).setChannelTypes(ChannelType.VOICE);
@@ -222,8 +243,9 @@ public class BotCommands extends ListenerAdapter {
         size = new OptionData(OptionType.INTEGER, "pugsize", "Custom pug size. Only required when pug format is set to \"custom\".");
 
         commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, size).setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
-        commandData.add(Commands.slash("start", "Start pug.").setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
 
-        event.getGuild().updateCommands().addCommands(commandData).queue();
+        for (CommandData c : commandData) {
+            event.getGuild().upsertCommand(c).queue();
+        }
     }
 }
