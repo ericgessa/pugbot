@@ -102,13 +102,7 @@ public class BotCommands extends ListenerAdapter {
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
         assert event.getGuild() != null;
-
-        System.out.println("button pressed");
-        System.out.println(event.getComponentId());
-        System.out.println(event.getComponentId().equals("startpug"));
-
         try {
-            System.out.println("in try block");
             if (event.getComponentId().equals("startpug")) {
                 if (pugVoiceChannel.getMembers().size() < pugSize) {
                     event.reply("Could not start pug! Someone may have left the channel.\nReroll to create new pug.")
