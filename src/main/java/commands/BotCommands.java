@@ -1,5 +1,7 @@
 package commands;
 
+import io.github.cdimascio.dotenv.Dotenv;
+
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
@@ -10,29 +12,36 @@ import net.dv8tion.jda.api.events.guild.GuildReadyEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.Interaction;
 import net.dv8tion.jda.api.interactions.commands.*;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class BotCommands extends ListenerAdapter {
-    EmbedBuilder eb = new EmbedBuilder();
+    EmbedBuilder embedBuilder = new EmbedBuilder();
+    Dotenv dotenv;
 
-    VoiceChannel pug;
-    VoiceChannel blu;
-    VoiceChannel red;
+    public BotCommands() {
+        dotenv = Dotenv.load();
+    }
 
-    List<Member> pugChannelMembers;
-    List<Member> redTeam;
-    List<Member> bluTeam;
-    List<Member> fatKids;
+    private VoiceChannel pugVoiceChannel;
+    private VoiceChannel bluVoiceChannel;
+    private VoiceChannel redVoiceChannel;
+
+    private List<Member> pugChannelMembers = new ArrayList<>();
+    private List<Member> redTeam = new ArrayList<>();
+    private List<Member> bluTeam = new ArrayList<>();
+    private List<Member> fatKids = new ArrayList<>();
 
     OptionData size;
 
@@ -53,10 +62,12 @@ public class BotCommands extends ListenerAdapter {
             channel = event.getOption("channel");
             assert channel != null;
 
-            pug = channel.getAsChannel().asVoiceChannel();
-            blu = event.getGuild().getVoiceChannelById(1099095690640105502L);
-            red = event.getGuild().getVoiceChannelById(1099095742003548160L);
+            pugVoiceChannel = channel.getAsChannel().asVoiceChannel();
+            bluVoiceChannel = event.getGuild().getVoiceChannelById(dotenv.get("BLU_CHANNEL_ID"));
+            redVoiceChannel = event.getGuild().getVoiceChannelById(dotenv.get("RED_CHANNEL_ID"));
 
+            pugChannelMembers = pugVoiceChannel.getMembers();
+            int memberSize = pugChannelMembers.size();
 
             String formatOption = format.getAsString();
 
@@ -76,8 +87,11 @@ public class BotCommands extends ListenerAdapter {
                     event.reply("Cannot start custom pug without at least two players!").setEphemeral(true).queue();
                 } else if (pugSize % 2 != 0) {
                     event.reply("Cannot start custom pug with uneven teams!").setEphemeral(true).queue();
-                } else {
-                    setupPug(event);
+                } else if (memberSize < pugSize) {
+                    event.reply("Not enough players added for pug!\n" + "Number added: " + memberSize
+                    + ", number required: " + pugSize).setEphemeral(true).queue();
+                }else {
+                    setupPug(pugChannelMembers, event);
                 }
             } catch (NullPointerException e) {
                 event.reply("Custom size required for \"custom\" format!").setEphemeral(true).queue();
@@ -89,11 +103,27 @@ public class BotCommands extends ListenerAdapter {
     public void onButtonInteraction(ButtonInteractionEvent event) {
         assert event.getGuild() != null;
 
+        System.out.println("button pressed");
+        System.out.println(event.getComponentId());
+        System.out.println(event.getComponentId().equals("startpug"));
+
         try {
+            System.out.println("in try block");
             if (event.getComponentId().equals("startpug")) {
+                if (pugVoiceChannel.getMembers().size() < pugSize) {
+                    event.reply("Could not start pug! Someone may have left the channel.\nReroll to create new pug.")
+                            .setEphemeral(true).queue();
+                    return;
+                }
                 moveToTeams(event);
             } else if (event.getComponentId().equals("reroll")) {
-                refreshPug(event);
+                int memberSize = pugChannelMembers.size();
+                if(memberSize < pugSize) {
+                    event.reply("Not enough players added for pug!\n" + "Number added: " + memberSize
+                            + ", number required: " + pugSize).setEphemeral(true).queue();
+                    return;
+                }
+                setupPug(pugChannelMembers, event);
             }
         } catch (NullPointerException e) {
             event.getInteraction().deferReply().setEphemeral(true).queue();
@@ -101,75 +131,57 @@ public class BotCommands extends ListenerAdapter {
     }
 
     public void createList() {
-        eb.clear();
-        pugChannelMembers = new ArrayList<>(pug.getMembers());
-        redTeam = new ArrayList<>();
-        bluTeam = new ArrayList<>();
-        fatKids = new ArrayList<>();
-
+        embedBuilder.clear();
+        pugChannelMembers = new ArrayList<>(pugVoiceChannel.getMembers());
+        redTeam.clear();
+        bluTeam.clear();
+        fatKids.clear();
+    
         Collections.shuffle(pugChannelMembers);
-
-        for (Member m : pugChannelMembers) {
-            if (pugChannelMembers.indexOf(m) < (pugSize / 2)) {
-                bluTeam.add(m);
-            } else if (pugChannelMembers.indexOf(m) >= (pugSize / 2) && pugChannelMembers.indexOf(m) < pugSize) {
+    
+        for (int i = 0; i < pugChannelMembers.size(); i++) {
+            Member m = pugChannelMembers.get(i);
+            if (redTeam.size() < (pugSize / 2)) {
                 redTeam.add(m);
-            } else if (pugChannelMembers.indexOf(m) >= pugSize) {
+            } else if (bluTeam.size() < (pugSize / 2)) {
+                bluTeam.add(m);
+            } else {
                 fatKids.add(m);
             }
         }
 
-        eb.setColor(new Color(220, 20, 60));
-        eb.addField("BLU:", listMembers(bluTeam, false, true), true);
-        eb.addField("RED:", listMembers(redTeam, false, true), true);
+        embedBuilder.setColor(new Color(220, 20, 60));
+        embedBuilder.addField("BLU:", getNames(bluTeam), true);
+        embedBuilder.addField("RED:", getNames(redTeam), true);
         if (fatKids.size() > 0) {
-            eb.addField("FKs:", listMembers(fatKids, false, true), false);
+            embedBuilder.addField("FKs:", getNames(fatKids), false);
         }
     }
 
     @NotNull
-    private String getNames(List<Member> members, boolean mentionable, boolean sort) {
-        String messageOfNames;
+    private String getNames(List<Member> members) {
+        sortMembersByName(members);
 
-        if (sort) {
-            runComparator(members);
-        }
-
-        StringBuilder messageOfNamesBuilder = new StringBuilder();
-
-        if (mentionable) {
-            for (Member m : members) {
-                if (m.equals(members.get(members.size() - 1))) {
-                    messageOfNamesBuilder.append(m.getAsMention());
-                } else {
-                    messageOfNamesBuilder.append(m.getAsMention()).append("\n");
-                }
-            }
-        } else {
-            for (Member m : members) {
-                if (m.equals(members.get(members.size() - 1))) {
-                    messageOfNamesBuilder.append(m.getEffectiveName());
-                } else {
-                    messageOfNamesBuilder.append(m.getEffectiveName()).append("\n");
-                }
-            }
-        }
-        messageOfNames = messageOfNamesBuilder.toString();
-        return messageOfNames;
+        return members.stream()
+                .map(m -> m.getEffectiveName())
+                .collect(Collectors.joining("\n"));
     }
 
-    public String listMembers(List<Member> members, boolean mentionable, boolean sort) {
-        return getNames(members, mentionable, sort);
-    }
-    private void setupPug(SlashCommandInteractionEvent event) {
+    private void setupPug(List<Member> members, Interaction event) {
         createList();
 
-        MessageEmbed embed = eb.build();
-
-        if (!(pug.getMembers().size() >= pugSize)) {
-            event.reply("Not enough players added for pug!\n" + "Number added: " + pug.getMembers().size() + ", number required: " + pugSize).setEphemeral(true).queue();
-        } else {
-            event.reply("").setEmbeds(embed)
+        MessageEmbed embed = embedBuilder.build();
+    
+        if (event instanceof SlashCommandInteractionEvent) {
+            ((SlashCommandInteractionEvent) event).reply("").setEmbeds(embed)
+                    .addActionRow(
+                            Button.success("startpug", "Start"),
+                            Button.primary("reroll", "Reroll")
+                    )
+                    .setEphemeral(true)
+                    .queue();
+        } else if (event instanceof ButtonInteractionEvent) {
+            ((ButtonInteractionEvent) event).replyEmbeds(embed)
                     .addActionRow(
                             Button.success("startpug", "Start"),
                             Button.primary("reroll", "Reroll")
@@ -178,56 +190,36 @@ public class BotCommands extends ListenerAdapter {
                     .queue();
         }
     }
-
-    private void refreshPug(ButtonInteractionEvent buttonEvent) {
-        createList();
-
-        if (pug.getMembers().size() < pugSize) {
-            buttonEvent.reply("Could not start pug! Someone must have left!\n"
-                            + "Number added: " + pug.getMembers().size()
-                            + ", number required: " + pugSize).setEphemeral(true)
-                    .queue();
-        } else {
-            MessageEmbed embed = eb.build();
-            buttonEvent.editMessage("").setEmbeds(embed)
-                    .queue();
-        }
-    }
-
-    public void runComparator(List<Member> members) {
+    
+    public void sortMembersByName(List<Member> members) {
         members.sort((m1, m2) -> String.CASE_INSENSITIVE_ORDER.compare(m1.getEffectiveName(), m2.getEffectiveName()));
     }
 
     public void moveToTeams(ButtonInteractionEvent event) {
         assert event.getGuild() != null;
-
-        if (!(redTeam.size() == (pugSize / 2) || bluTeam.size() == (pugSize / 2))) {
-            event.reply("Could not start pug! Someone may have left the channel.\nReroll to create new pug.").setEphemeral(true).queue();
+    
+        if (pugSize > 10) {
+            event.reply(
+                    "Pug started!\nDiscord allows only ten people to be moved at once, so please give me time to move the rest of the players.")
+                    .setEphemeral(true).queue();
         } else {
-            if (pugSize > 10) {
-                event.reply("Pug started!\nDiscord allows only ten people to be moved at once, so please give me time to move the rest of the players.").setEphemeral(true).queue();
-            } else {
-                event.reply("Pug started!").setEphemeral(true).queue();
-            }
-
-            moveBlu(event);
-            moveRed(event);
+            event.reply("Pug started!").setEphemeral(true).queue();
         }
+    
+        moveMembers(event, bluTeam, bluVoiceChannel);
+        moveMembers(event, redTeam, redVoiceChannel);
+    
         bluTeam.clear();
         redTeam.clear();
     }
 
-    public void moveBlu(ButtonInteractionEvent event) {
+    public void moveMembers(ButtonInteractionEvent event, List<Member> team, VoiceChannel destination) {
         assert event.getGuild() != null;
-        for (Member m : bluTeam) {
-            event.getGuild().moveVoiceMember(m, blu).queue();
-        }
-    }
-
-    public void moveRed(ButtonInteractionEvent event) {
-        assert event.getGuild() != null;
-        for (Member m : redTeam) {
-            event.getGuild().moveVoiceMember(m, red).queue();
+        for (Member m : team) {
+            event.getGuild().moveVoiceMember(m, destination).queue(null, throwable -> {
+                // Handle error here
+                System.out.println("Failed to move member: " + throwable.getMessage());
+            });
         }
     }
 
@@ -235,14 +227,17 @@ public class BotCommands extends ListenerAdapter {
     public void onGuildReady(@NotNull GuildReadyEvent event) {
         List<CommandData> commandData = new ArrayList<>();
 
-        OptionData vc = new OptionData(OptionType.CHANNEL, "channel", "Name of voice channel to start pug in", true).setChannelTypes(ChannelType.VOICE);
+        OptionData vc = new OptionData(OptionType.CHANNEL, "channel", "Name of voice channel to start pug in", true)
+                .setChannelTypes(ChannelType.VOICE);
         OptionData format = new OptionData(OptionType.STRING, "format", "Competitive format", true)
                 .addChoice("Highlander", "hl")
                 .addChoice("Prolander", "pl")
                 .addChoice("Custom", "c");
-        size = new OptionData(OptionType.INTEGER, "pugsize", "Custom pug size. Only required when pug format is set to \"custom\".");
+        size = new OptionData(OptionType.INTEGER, "pugsize",
+                "Custom pug size. Only required when pug format is set to \"custom\".");
 
-        commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, size).setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
+        commandData.add(Commands.slash("run", "Build a pug.").addOptions(format, vc, size)
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.KICK_MEMBERS)));
 
         for (CommandData c : commandData) {
             event.getGuild().upsertCommand(c).queue();
